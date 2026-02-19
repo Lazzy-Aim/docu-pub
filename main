@@ -1,0 +1,305 @@
+    sudo ufw status : Check if firewall is active and list rules.[6][7]
+
+    sudo ufw enable : Turn on the firewall (careful: allow SSH first!).
+
+    sudo ufw disable : Turn off the firewall.[6][7]
+
+    sudo ufw allow 22/tcp : Allow SSH (Standard port).
+
+    sudo ufw allow 80/tcp : Allow HTTP.
+
+    sudo ufw allow 443/tcp : Allow HTTPS.
+
+    sudo ufw allow from 192.168.1.50 : Allow all traffic from a specific IP (e.g., your office VPN or management PC).
+
+    sudo ufw delete allow 80/tcp : Remove a rule.
+
+    sudo ufw reload : Reload rules without restarting.
+
+
+
+    sudo apt update : Refreshes the list of available updates (run this first).
+
+    sudo apt upgrade : Installs the actual updates for your system.
+
+    sudo apt install <package_name> : Installs software (e.g., sudo apt install nginx).
+
+    sudo apt remove <package_name> : Removes software but keeps config files.
+
+    sudo apt purge <package_name> : Removes software AND config files.[8]
+
+    sudo apt autoremove : Cleans up unused dependencies (keeps disk clean).
+
+    apt search <keyword> : Search for a package.[8]
+
+    apt show <package_name> : Show details about a package.
+
+    sudo systemctl status ssh
+
+    # Allow SSH in firewall
+    sudo ufw allow ssh
+    
+    # Enable firewall
+    sudo ufw enable
+    # (Type 'y' when prompted)
+
+    # Create directory (-p creates parent folders if needed)
+    sudo mkdir -p /var/www/mysite.com/html
+    
+    # Create a sample index.html to test
+    echo "<h1>Success! My Nginx Config Works!</h1>" | sudo tee /var/www/mysite.com/html/index.html
+    
+    # Set permissions (so Nginx can read it)
+    sudo chown -R $USER:$USER /var/www/mysite.com/html
+    sudo chmod -R 755 /var/www/mysite.com
+
+
+
+    sudo nano /etc/nginx/sites-available/mysite.com
+
+    server {
+        # Listen on port 80 (HTTP)
+        listen 80;
+        listen [::]:80;
+    
+        # The folder where your HTML lives
+        root /var/www/mysite.com/html;
+    
+        # Order of file priority
+        index index.html index.htm index.nginx-debian.html;
+    
+        # Your Domain Name or Server IP
+        server_name mysite.com www.mysite.com;
+        # OR if you don't have a domain yet, use your IP:
+        # server_name 192.168.1.50; 
+    
+        location / {
+            # First check if file exists, if not, return 404
+            try_files $uri $uri/ =404;
+        }
+    }
+
+    location / {
+    proxy_pass http://localhost:3000;
+    proxy_http_version 1.1;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection 'upgrade';
+    proxy_set_header Host $host;
+    proxy_cache_bypass $http_upgrade;
+}
+
+# 1. Install Java (Jenkins requires Java)
+sudo apt update
+sudo apt install fontconfig openjdk-17-jre -y
+
+# 2. Add Jenkins Repository Key
+sudo wget -O /usr/share/keyrings/jenkins-keyring.asc \
+  https://pkg.jenkins.io/debian-stable/jenkins.io-2023.key
+
+# 3. Add Jenkins Repo
+echo "deb [signed-by=/usr/share/keyrings/jenkins-keyring.asc] \
+  https://pkg.jenkins.io/debian-stable binary/" | sudo tee \
+  /etc/apt/sources.list.d/jenkins.list > /dev/null
+
+# 4. Install Jenkins
+sudo apt update
+sudo apt install jenkins -y
+
+# 5. Start and Enable
+sudo systemctl start jenkins
+sudo systemctl enable jenkins
+
+# 6. Get the Initial Admin Password (for the web setup wizard)
+sudo cat /var/lib/jenkins/secrets/initialAdminPassword
+
+Access via browser at http://your_server_ip:8080
+
+
+pipeline {
+    agent any  // Runs on any available node/agent
+    
+    environment {
+        // Define global variables here
+        APP_VERSION = "1.0.0"
+    }
+
+    stages {
+        stage('Build') {
+            steps {
+                echo 'Building...'
+            }
+        }
+        stage('Test') {
+            steps {
+                echo 'Testing...'
+            }
+        }
+        stage('Deploy') {
+            steps {
+                echo 'Deploying...'
+            }
+        }
+    }
+    
+    post { 
+        always { 
+            echo 'This always runs (cleanup)' 
+        }
+        failure { 
+            echo 'Pipeline failed! Send alert.' 
+        }
+    }
+}
+
+pipeline {
+    agent any
+
+    tools {
+        // Requires "NodeJS" to be configured in 'Global Tool Configuration'
+        nodejs 'NodeJS 16' 
+    }
+
+    stages {
+        stage('Install Dependencies') {
+            steps {
+                sh 'npm install'
+            }
+        }
+
+        stage('Unit Tests') {
+            steps {
+                // Run tests and output JUnit XML reports
+                sh 'npm test'
+            }
+        }
+
+        stage('Build Production') {
+            steps {
+                sh 'npm run build'
+            }
+        }
+    }
+
+    post {
+        always {
+            // Clean workspace to save disk space
+            cleanWs() 
+        }
+        success {
+            // Save the 'dist' folder as an artifact in Jenkins
+            archiveArtifacts artifacts: 'dist/**/*', fingerprint: true
+        }
+    }
+}
+
+pipeline {
+    agent any
+
+    environment {
+        // Use 'Credentials Binding' for security
+        DOCKER_CREDS = credentials('my-docker-hub-id')
+        IMAGE_NAME = "myapp:latest"
+    }
+
+    stages {
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    sh "docker build -t ${IMAGE_NAME} ."
+                }
+            }
+        }
+
+        stage('Login & Push') {
+            steps {
+                sh "echo $DOCKER_CREDS_PSW | docker login -u $DOCKER_CREDS_USR --password-stdin"
+                sh "docker push ${IMAGE_NAME}"
+            }
+        }
+    }
+}
+
+
+
+
+sudo snap install kubectl --classic
+
+pipeline {
+    agent any
+
+    environment {
+        // Your Docker Hub/Registry Credentials ID
+        DOCKER_CREDS = credentials('docker-hub-creds') 
+        // The Secret File ID you created in Step 2
+        KUBECONFIG_ID = 'k8s-kubeconfig'
+        
+        IMAGE_NAME = "myrepo/myapp"
+        // Uses the Jenkins Build Number as a tag (e.g., v23)
+        IMAGE_TAG = "v${BUILD_NUMBER}" 
+    }
+
+    stages {
+        stage('Build & Push Docker') {
+            steps {
+                script {
+                    sh "docker build -t ${IMAGE_NAME}:${IMAGE_TAG} ."
+                    sh "echo $DOCKER_CREDS_PSW | docker login -u $DOCKER_CREDS_USR --password-stdin"
+                    sh "docker push ${IMAGE_NAME}:${IMAGE_TAG}"
+                }
+            }
+        }
+
+        stage('Deploy to K8s') {
+            steps {
+                script {
+                    // 1. Inject the Kubeconfig file securely
+                    withCredentials([file(credentialsId: KUBECONFIG_ID, variable: 'KUBECONFIG')]) {
+                        
+                        // 2. Update the YAML with the new Image Tag
+                        // We use 'sed' to replace the placeholder with the real tag
+                        sh "sed -i 's/IMAGE_TAG_PLACEHOLDER/${IMAGE_TAG}/g' k8s/deployment.yaml"
+                        
+                        // 3. Apply to Kubernetes
+                        sh "kubectl apply -f k8s/deployment.yaml"
+                        
+                        // 4. Verify Rollout (Waits until pods are healthy)
+                        sh "kubectl rollout status deployment/my-web-app"
+                    }
+                }
+            }
+        }
+    }
+}
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: my-web-app
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: my-web-app
+  template:
+    metadata:
+      labels:
+        app: my-web-app
+    spec:
+      containers:
+      - name: nginx
+        # Jenkins will replace this specific string
+        image: myrepo/myapp:IMAGE_TAG_PLACEHOLDER 
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: my-web-app-service
+spec:
+  type: NodePort
+  selector:
+    app: my-web-app
+  ports:
+    - port: 80
+      targetPort: 80
